@@ -1,0 +1,682 @@
+<?php
+/**
+ * BETELITE - Sports Prediction SaaS Platform Entrance File
+ * Fully compatible with standard cPanel PHP 8+ shared hosting environments.
+ * Serves the HTML frontend while parsing sessions and Telegram WebApp profiles.
+ */
+
+require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/config/database.php';
+
+// Prepare Session variables for JavaScript parsing
+$session_json = json_encode([
+    'user_id' => $_SESSION['user_id'] ?? null,
+    'username' => $_SESSION['username'] ?? null,
+    'first_name' => $_SESSION['first_name'] ?? null,
+    'role' => $_SESSION['user_role'] ?? 'USER',
+    'balance' => $_SESSION['balance'] ?? 0.00,
+    'is_vip' => $_SESSION['is_vip'] ?? 0,
+    'csrf_token' => $_SESSION['csrf_token'] ?? null
+]);
+
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🏆 BETELITE - Sports Prediction SaaS Platform</title>
+  
+  <!-- Pass PHP Session states directly to client JS state -->
+  <script>
+    window.BETELITE_SESSION = <?php echo $session_json; ?>;
+  </script>
+
+  <!-- Tailwind CSS & Bootstrap 5 Custom CDNs -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Google Fonts & Lucide Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  
+  <link rel="stylesheet" href="/assets/css/style.css">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bgDark: '#0b0c10',
+            panelGrey: '#11141c',
+            mintGreen: '#10b981',
+            goldVip: '#fbbf24',
+            hotOrange: '#f97316',
+            liveBlue: '#3b82f6',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0b0c10] text-[#f1f3f5] pb-24 font-sans select-none antialiased">
+
+  <!-- TOP HEADER HUD bar -->
+  <header class="sticky top-0 z-40 bg-bgDark/90 backdrop-blur-md border-b border-white/5 px-4 py-3">
+    <div class="flex items-center justify-between">
+      <!-- User profile & role -->
+      <div class="flex items-center gap-2.5">
+        <div class="relative">
+          <div id="user-avatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-mintGreen to-liveBlue flex items-center justify-center font-bold text-bgDark text-base border border-white/10 uppercase">
+            BE
+          </div>
+          <span id="user-role-badge" class="absolute -bottom-1 -right-1 bg-mintGreen text-bgDark text-[9px] font-extrabold px-1 rounded-sm border border-bgDark">
+            USER
+          </span>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <span id="user-fullname" class="font-bold text-sm tracking-tight text-white">BetElite Guest</span>
+            <span id="vip-star" class="hidden text-goldVip"><i data-lucide="crown" class="w-3.5 h-3.5 fill-current"></i></span>
+          </div>
+          <p id="user-username" class="text-xs text-gray-400 font-mono">@guest_player</p>
+        </div>
+      </div>
+      
+      <!-- Wallet widget trigger and cart count -->
+      <div class="flex items-center gap-2.5">
+        <button onclick="switchTab('wallet')" class="flex items-center gap-1.5 bg-[#171b26] border border-white/5 py-1.5 px-3 rounded-full hover:bg-white/5 transition active:scale-95 duration-100">
+          <i data-lucide="wallet" class="w-4 h-4 text-mintGreen"></i>
+          <span id="hud-wallet-balance" class="font-bold text-xs text-white font-mono">$0.00</span>
+        </button>
+        <button onclick="toggleCart()" class="relative p-2 bg-[#171b26] border border-white/5 rounded-full hover:bg-white/5 transition active:scale-95 text-white">
+          <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+          <span id="cart-badge" class="absolute -top-1 -right-1 bg-hotOrange text-white font-extrabold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- BANNER ADS CAROUSEL & HOME PROMO -->
+  <div id="promo-ads-container" class="px-4 mt-3">
+    <!-- Will be populated dynamically with high-impact banners -->
+  </div>
+
+  <!-- MAIN SPA ROUTER CONTAINER -->
+  <main class="container px-4 py-3 max-w-lg mx-auto">
+    
+    <!-- 1. MARKETPLACE TAB VIEW -->
+    <section id="marketplace-view" class="tab-content-view active">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-extrabold tracking-tight text-white uppercase flex items-center gap-1.5">
+          <i data-lucide="grid" class="w-5 h-5 text-mintGreen"></i>
+          Predictions Arena
+        </h2>
+        <div class="flex items-center gap-1 bg-[#11141c] p-0.5 rounded-lg border border-white/5">
+          <button onclick="filterMarket('all')" class="market-filter-btn px-2.5 py-1 text-xs font-semibold rounded-md bg-mintGreen text-bgDark">All</button>
+          <button onclick="filterMarket('vip')" class="market-filter-btn px-2.5 py-1 text-xs font-semibold rounded-md text-gray-400 hover:text-white">VIP</button>
+          <button onclick="filterMarket('free')" class="market-filter-btn px-2.5 py-1 text-xs font-semibold rounded-md text-gray-400 hover:text-white">Free</button>
+        </div>
+      </div>
+
+      <!-- Sports Category Pills Slider -->
+      <div class="flex gap-2.5 overflow-x-auto pb-3 mb-4 scrollbar-none scroll-smooth">
+        <button onclick="filterSport('all')" class="sport-pill active bg-[#11141c] hover:bg-white/5 text-xs font-semibold px-4 py-2 rounded-full border border-white/5 text-[#f1f3f5] flex items-center gap-1.5 whitespace-nowrap">
+          ⚽ All Sports
+        </button>
+        <button onclick="filterSport('Football')" class="sport-pill bg-[#11141c] hover:bg-white/5 text-xs font-semibold px-4 py-2 rounded-full border border-white/5 text-[#f1f3f5] flex items-center gap-1.5 whitespace-nowrap">
+          🏟️ Football
+        </button>
+        <button onclick="filterSport('Basketball')" class="sport-pill bg-[#11141c] hover:bg-white/5 text-xs font-semibold px-4 py-2 rounded-full border border-white/5 text-[#f1f3f5] flex items-center gap-1.5 whitespace-nowrap">
+          🏀 Basketball
+        </button>
+        <button onclick="filterSport('Tennis')" class="sport-pill bg-[#11141c] hover:bg-white/5 text-xs font-semibold px-4 py-2 rounded-full border border-white/5 text-[#f1f3f5] flex items-center gap-1.5 whitespace-nowrap">
+          🎾 Tennis
+        </button>
+        <button onclick="filterSport('eSports')" class="sport-pill bg-[#11141c] hover:bg-white/5 text-xs font-semibold px-4 py-2 rounded-full border border-white/5 text-[#f1f3f5] flex items-center gap-1.5 whitespace-nowrap">
+          🎮 eSports
+        </button>
+      </div>
+
+      <!-- Marketplace Cards -->
+      <div id="predictions-arena-grid" class="space-y-4">
+        <!-- Skeleton Loaders inside before AJAX completes -->
+        <div class="glass-panel p-4 animate-pulse">
+          <div class="h-4 bg-white/10 w-24 rounded-md mb-3"></div>
+          <div class="h-8 bg-white/5 rounded-md mb-2"></div>
+          <div class="h-6 bg-white/5 rounded-md w-3/4"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. LIVE MATCH CENTER VIEW -->
+    <section id="live-view" class="tab-content-view">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-extrabold tracking-tight text-white uppercase flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500 live-pulse"></span>
+          Live Match Hub
+        </h2>
+        <span class="text-xs bg-liveBlue/15 text-liveBlue px-2 py-0.5 rounded border border-liveBlue/20 font-semibold font-mono">AJAX Sync Active</span>
+      </div>
+
+      <div id="live-matches-container" class="space-y-4">
+        <!-- Dyn. Live match cards -->
+      </div>
+    </section>
+
+    <!-- 3. WALLET & TRANSACTION HISTORY VIEW -->
+    <section id="wallet-view" class="tab-content-view">
+      <h2 class="text-base font-extrabold tracking-tight text-white uppercase mb-4 flex items-center gap-1.5 text-mintGreen">
+        <i data-lucide="wallet" class="w-5 h-5"></i>
+        BETELITE Secure Vault
+      </h2>
+
+      <!-- Card balance overview -->
+      <div class="glass-panel p-4 mb-4 bg-gradient-to-tr from-[#141b24] to-[#121c2c] border border-blue-500/15">
+        <p class="text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wider">Total Available Balance</p>
+        <h3 id="wallet-balance-main" class="text-3xl font-black font-mono text-white mb-2">$0.00</h3>
+        <p class="text-xs text-gray-500 mb-4 font-mono">Simulated Telegram Stars & Currency Integrated</p>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="openDepositModal()" class="btn-emerald-graded py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Deposit Funds
+          </button>
+          <button onclick="openWithdrawModal()" class="bg-[#1f2937]/80 hover:bg-[#374151] border border-white/5 text-white font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+            <i data-lucide="arrow-up-right" class="w-4 h-4 text-orange-400"></i> Withdraw
+          </button>
+        </div>
+      </div>
+
+      <!-- Predictor earnings pocket (for seller roles) -->
+      <div id="predictor-wallet-pocket" class="hidden glass-panel p-4 mb-4 bg-[#14231b]/45 border border-mintGreen/15">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-[10px] text-mintGreen font-bold uppercase tracking-wider mb-1">Predictor Sales Earnings</p>
+            <h4 id="predictor-earnings-bal" class="text-xl font-bold font-mono text-white">$0.00</h4>
+          </div>
+          <button onclick="withdrawPredictorSales()" class="bg-mintGreen text-bgDark text-xs font-bold py-1 px-3 rounded-lg hover:bg-emerald-400 transition">
+            Cashout
+          </button>
+        </div>
+      </div>
+
+      <!-- VIP Membership card buy -->
+      <div id="vip-subscription-panel" class="glass-panel-vip p-4 mb-4 border border-goldVip/20">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <span class="text-[9px] bg-goldVip text-bgDark px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">BETELITE VIP</span>
+            <h4 class="text-sm font-bold text-white mt-1">Acquire VIP Pass & Unlocked Odds</h4>
+          </div>
+          <span class="text-xs font-bold font-mono text-goldVip">$29.99/wk</span>
+        </div>
+        <p class="text-xs text-gray-400 mb-3">Gain premium access to fixed accumulator tips, extreme soccer combos, and dedicated channels.</p>
+        <button onclick="purchaseVipPass()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-400 text-bgDark font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-95 hover:brightness-115">
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Buy VIP Protection Pass
+        </button>
+      </div>
+
+      <!-- Transaction Logs history -->
+      <div class="glass-panel p-4">
+        <h4 class="text-xs font-extrabold text-[#f1f3f5] uppercase mb-3 border-b border-white/5 pb-2 tracking-wider flex items-center gap-1.5">
+          <i data-lucide="history" class="w-4 h-4 text-gray-400"></i>
+          Account Transaction Ledger
+        </h4>
+        <div id="transaction-logs-list" class="space-y-3 max-h-48 overflow-y-auto">
+          <!-- Dynamic ledger entries -->
+          <p class="text-xs text-gray-400 text-center py-4">No transactions found</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. REFERRALS & USER STATS VIEW -->
+    <section id="referrals-view" class="tab-content-view">
+      <h2 class="text-base font-extrabold tracking-tight text-white uppercase mb-4 flex items-center gap-1.5 text-goldVip">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        Elite Affiliate Network
+      </h2>
+
+      <!-- Referral link card panel -->
+      <div class="glass-panel p-4 mb-4 bg-gradient-to-tr from-[#1c1b12] to-[#121c20]">
+        <h3 class="text-sm font-bold text-white mb-1.5 flex items-center gap-1.5">
+          Invite Pals, Stack Commission!
+        </h3>
+        <p class="text-xs text-gray-400 mb-4">You will receive a <b>10% commission bonus</b> immediately for every deposit made by your referred partners.</p>
+        
+        <div class="flex items-center gap-2 bg-[#090a0f] border border-white/5 rounded-lg p-2 mb-3">
+          <input id="referral-link-input" type="text" class="bg-transparent border-0 ring-0 outline-none text-xs text-goldVip font-mono flex-1 truncate" readOnly value="https://t.me/BetElite_bot/app?startapp=BE6921">
+          <button onclick="copyReferralLink()" class="bg-[#1e2330] hover:bg-white/5 text-white border border-white/5 p-1.5 rounded-md text-xs font-semibold active:bg-mintGreen active:text-bgDark transition">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        <button onclick="inviteTelegramFriend()" class="w-full btn-emerald-graded py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+          <i data-lucide="send" class="w-4 h-4"></i> Share To Telegram Contacts
+        </button>
+      </div>
+
+      <!-- Affiliates List Board -->
+      <div class="glass-panel p-4">
+        <h4 class="text-xs font-extrabold text-[#f1f3f5] uppercase mb-3 border-b border-white/5 pb-2 flex items-center justify-between">
+          <span>👥 Registered Referred Buddies</span>
+          <span id="referrals-count" class="text-goldVip font-mono font-bold">0</span>
+        </h4>
+        <div id="referrals-table-list" class="space-y-2 max-h-48 overflow-y-auto">
+          <!-- Dynamic invitees -->
+          <p class="text-xs text-gray-400 text-center py-4">Zero recruits listed. Start sharing now!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. PREDICTOR DASHBOARD -->
+    <section id="predictor-view" class="tab-content-view">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-extrabold tracking-tight text-white uppercase flex items-center gap-1.5 text-mintGreen">
+          <i data-lucide="shield-alert" class="w-5 h-5"></i>
+          Predictor HQ Portal
+        </h2>
+        <span class="text-xs bg-mintGreen/15 text-mintGreen border border-mintGreen/20 px-2 py-0.5 rounded font-extrabold">SELLER ACTIVE</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="glass-panel p-3">
+          <span class="text-[10px] text-gray-400 font-semibold uppercase">Published Tickets</span>
+          <h4 id="predictor-stats-total" class="text-lg font-bold text-white font-mono mt-0.5">0</h4>
+        </div>
+        <div class="glass-panel p-3">
+          <span class="text-[10px] text-gray-400 font-semibold uppercase">Avg Accuracy</span>
+          <h4 id="predictor-stats-accuracy" class="text-lg font-bold text-white font-mono mt-0.5">85.4%</h4>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <button onclick="openPublishPredictionModal()" class="w-full btn-emerald-graded py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+          <i data-lucide="plus-circle" class="w-4.5 h-4.5"></i> Design new Combo Ticket Tip
+        </button>
+
+        <div class="glass-panel p-4">
+          <h4 class="text-xs font-extrabold text-[#f1f3f5] uppercase mb-3 border-b border-white/5 pb-2">
+            📋 My Published Prediction List
+          </h4>
+          <div id="predictor-tips-history-list" class="space-y-3">
+            <!-- Dynamic predictor items -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. ADMIN SECURITY CONTROL ROOM VIEW -->
+    <section id="admin-view" class="tab-content-view">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-extrabold tracking-tight text-white uppercase flex items-center gap-1.5 text-hotOrange">
+          <i data-lucide="sliders" class="w-5 h-5"></i>
+          Super Admin Control Room
+        </h2>
+        <span class="text-xs bg-hotOrange/15 text-hotOrange border border-hotOrange/20 px-2 py-0.5 rounded font-extrabold font-mono">SUPERADMIN</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <button onclick="openCreateMatchModal()" class="glass-panel p-3 hover:bg-white/5 border border-white/10 text-left transition">
+          <i data-lucide="plus-square" class="w-5 h-5 text-mintGreen mb-1"></i>
+          <h4 class="text-xs font-bold text-white">Match Injector</h4>
+          <p class="text-[10px] text-gray-400">Inject football / esports matches</p>
+        </button>
+        <button onclick="openConfigureAdsModal()" class="glass-panel p-3 hover:bg-white/5 border border-white/10 text-left transition">
+          <i data-lucide="megaphone" class="w-5 h-5 text-goldVip mb-1"></i>
+          <h4 class="text-xs font-bold text-white">Advertiser Promos</h4>
+          <p class="text-[10px] text-gray-400">Handle promotional banners</p>
+        </button>
+      </div>
+
+      <div class="glass-panel p-4 mb-4">
+        <h4 class="text-xs font-extrabold text-[#f1f3f5] uppercase mb-3 border-b border-white/5 pb-2 flex items-center justify-between">
+          <span>⚽ Active Sports Events</span>
+          <span class="text-[10px] text-gray-400 font-mono">Settle predictions & results</span>
+        </h4>
+        <div id="admin-matches-control-grid" class="space-y-3">
+          <!-- Dynamic matching admin control cards -->
+        </div>
+      </div>
+
+      <div class="glass-panel p-4">
+        <h4 class="text-xs font-extrabold text-[#f1f3f5] uppercase mb-3 border-b border-white/5 pb-2">
+          👤 User Roles & Privileges
+        </h4>
+        <div id="admin-users-list" class="space-y-3.5 max-h-56 overflow-y-auto">
+          <!-- Dynamic users role management list -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CART SIDE DRAWER -->
+  <div id="cart-drawer-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 pointer-events-none opacity-0 transition-opacity duration-300 flex justify-end">
+    <div id="cart-drawer" class="cart-drawer-container w-full max-w-sm bg-[#0d0e12] border-l border-white/10 h-full p-6 flex flex-col justify-between translate-x-full shadow-2xl">
+      <div>
+        <div class="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="shopping-cart" class="w-5 h-5 text-mintGreen"></i>
+            My Prediction cart
+          </h3>
+          <button onclick="toggleCart()" class="p-2 hover:bg-white/5 rounded-full text-gray-400 hover:text-white">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+        
+        <div id="cart-items-container" class="space-y-3 overflow-y-auto max-h-[60vh]">
+          <!-- Dyn items -->
+        </div>
+      </div>
+
+      <div class="border-t border-white/5 pt-4">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm text-gray-400 font-semibold">Total Cost:</span>
+          <span id="cart-total-price" class="text-2xl font-black font-mono text-mintGreen">$0.00</span>
+        </div>
+        
+        <p class="text-[10px] text-gray-400 mb-3 font-semibold text-center uppercase tracking-wider">Checkout utilizes funds inside wallet balance</p>
+        
+        <button onclick="checkoutCartBundle()" class="w-full btn-emerald-graded py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform font-mono">
+          <i data-lucide="check-circle" class="w-4.5 h-4.5"></i> Purchase Tips Bundle
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STICKY BOTTOM NAVIGATION BAR -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 bg-bgDark/95 backdrop-blur-lg border-t border-white/5 py-2 px-1 text-center">
+    <div class="max-w-md mx-auto grid grid-cols-5 gap-1 text-center justify-center">
+      <button onclick="switchTab('marketplace')" id="nav-btn-marketplace" class="nav-btn active flex flex-col items-center justify-center py-1.5 text-mintGreen">
+        <i data-lucide="swords" class="w-5.5 h-5.5 font-bold"></i>
+        <span class="text-[9px] font-extrabold uppercase mt-1 tracking-wider">Arena</span>
+      </button>
+
+      <button onclick="switchTab('live')" id="nav-btn-live" class="nav-btn flex flex-col items-center justify-center py-1.5 text-gray-400 hover:text-white">
+        <i data-lucide="pulse" class="w-5.5 h-5.5"></i>
+        <span class="text-[9px] font-extrabold uppercase mt-1 tracking-wider">Live</span>
+      </button>
+
+      <button onclick="switchTab('predictor')" id="nav-btn-predictor" class="nav-btn flex flex-col items-center justify-center py-1.5 text-gray-400 hover:text-white">
+        <i data-lucide="badge-alert" class="w-5.5 h-5.5"></i>
+        <span class="text-[9px] font-extrabold uppercase mt-1 tracking-wider">Seller</span>
+      </button>
+
+      <button onclick="switchTab('wallet')" id="nav-btn-wallet" class="nav-btn flex flex-col items-center justify-center py-1.5 text-gray-400 hover:text-white">
+        <i data-lucide="wallet" class="w-5.5 h-5.5"></i>
+        <span class="text-[9px] font-extrabold uppercase mt-1 tracking-wider">Vault</span>
+      </button>
+
+      <button onclick="switchTab('admin')" id="nav-btn-admin" class="nav-btn hidden flex flex-col items-center justify-center py-1.5 text-gray-400 hover:text-white font-bold">
+        <i data-lucide="sliders" class="w-5.5 h-5.5 animate-pulse text-hotOrange"></i>
+        <span class="text-[9px] font-extrabold uppercase mt-1 tracking-wider text-hotOrange">Staff</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MOCK LOGINS DIALOGUE -->
+  <div id="login-modal-overlay" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center px-4 hidden">
+    <div class="glass-panel p-6 w-full max-w-sm border border-mintGreen/20 shadow-2xl">
+      <div class="text-center mb-5">
+        <div class="w-12 h-12 rounded-full bg-mintGreen/15 border border-mintGreen/30 flex items-center justify-center mx-auto mb-3">
+          <i data-lucide="key" class="w-6 h-6 text-mintGreen"></i>
+        </div>
+        <h3 class="text-lg font-black text-white">🏆 BETELITE Portal</h3>
+        <p class="text-xs text-gray-400 mt-1">Select an identity role to test this SaaS platform's advanced functionalities inside AI Studio.</p>
+      </div>
+
+      <div class="space-y-2.5">
+        <button onclick="loginAsRole('ADMIN')" class="w-full bg-[#1b253b] border border-blue-400/20 hover:bg-blue-900/20 text-blue-300 font-bold py-2.5 rounded-xl text-xs flex items-center justify-between px-4 transition active:scale-95">
+          <span>👑 Supervisor Admin Demo</span>
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+        <button onclick="loginAsRole('PREDICTOR')" class="w-full bg-[#13281f] border border-mintGreen/20 hover:bg-mintGreen/10 text-mintGreen font-bold py-2.5 rounded-xl text-xs flex items-center justify-between px-4 transition active:scale-95">
+          <span>📊 Expert Tip Predictor John</span>
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+        <button onclick="loginAsRole('USER')" class="w-full bg-[#201d1c]/50 border border-orange-500/20 hover:bg-orange-500/10 text-orange-400 font-bold py-2.5 rounded-xl text-xs flex items-center justify-between px-4 transition active:scale-95">
+          <span>👤 Normal Buyer Bob</span>
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div id="deposit-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4 hidden">
+    <div class="glass-panel p-6 w-full max-w-sm border border-emerald-500/20 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+        <h4 class="text-sm font-extrabold text-white uppercase flex items-center gap-1.5">
+          <i data-lucide="plus-circle" class="w-4.5 h-4.5 text-mintGreen"></i> Fund Wallet Balance
+        </h4>
+        <button onclick="closeDepositModal()" class="p-1 hover:bg-white/5 rounded-full text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <form id="deposit-form" onsubmit="executeDeposit(event)">
+        <label class="text-[10px] text-gray-400 font-semibold uppercase mb-3 block">Choose Funding Method</label>
+        <div class="grid grid-cols-2 gap-2.5 mb-4">
+          <label class="flex items-center justify-between p-2.5 rounded-xl bg-[#090a0f] border border-white/5 cursor-pointer hover:bg-white/5 transition">
+            <input type="radio" name="payment_method" value="Telegram Stars" checked class="accent-mintGreen">
+            <span class="text-xs text-white ml-2">Telegram Stars</span>
+          </label>
+          <label class="flex items-center justify-between p-2.5 rounded-xl bg-[#090a0f] border border-white/5 cursor-pointer hover:bg-white/5 transition">
+            <input type="radio" name="payment_method" value="Crypto" class="accent-mintGreen">
+            <span class="text-xs text-white ml-2">Crypto USDT</span>
+          </label>
+        </div>
+        <div class="mb-4">
+          <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Deposit Amount (USD)</label>
+          <input type="number" id="deposit-amount" value="50" min="10" step="5" class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-3 text-sm text-white font-mono outline-none focus:border-mintGreen transition">
+        </div>
+        <button type="submit" class="w-full btn-emerald-graded py-2.5 rounded-xl font-bold text-xs">Verify & Complete Payment</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="withdraw-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4 hidden">
+    <div class="glass-panel p-6 w-full max-w-sm border border-orange-500/20 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+        <h4 class="text-sm font-extrabold text-white uppercase flex items-center gap-1.5">
+          <i data-lucide="arrow-up-right" class="w-4.5 h-4.5 text-orange-400"></i> Cashout Payout
+        </h4>
+        <button onclick="closeWithdrawModal()" class="p-1 hover:bg-white/5 rounded-full text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <form id="withdraw-form" onsubmit="executeWithdraw(event)">
+        <div class="mb-3">
+          <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Payout Channel</label>
+          <select id="payout-method" class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-orange-400 transition">
+            <option value="USDT Tron TRC20">USDT Wallet (Tron TRC20)</option>
+            <option value="Direct Bank Transfer">Direct Bank Wire Delivery</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Target Destination Address or Account details</label>
+          <input type="text" id="payout-address" placeholder="e.g., TXYz... or 1048... (Zenith Bank)" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-3 text-xs text-white font-mono outline-none focus:border-orange-400 transition">
+        </div>
+        <div class="mb-4">
+          <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Amount to cashout (USD)</label>
+          <input type="number" id="withdraw-amount" min="10" placeholder="e.g. 100" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-3 text-sm text-white font-mono outline-none focus:border-orange-400 transition">
+        </div>
+        <button type="submit" class="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-bgDark font-bold py-2.5 rounded-xl text-xs active:scale-95 transition-transform">Request Withdrawal Approval</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="publish-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center px-4 hidden">
+    <div class="glass-panel p-6 w-full max-w-sm border border-mintGreen/30 shadow-2xl overflow-y-auto max-h-[90vh]">
+      <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+        <h4 class="text-sm font-extrabold text-white uppercase flex items-center gap-1.5">
+          <i data-lucide="plus-circle" class="w-4.5 h-4.5 text-mintGreen"></i> Build Combo Ticket
+        </h4>
+        <button onclick="closePublishPredictionModal()" class="p-1 hover:bg-white/5 rounded-full text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <form id="publish-form" onsubmit="executePublishPrediction(event)" class="space-y-3.5">
+        <div>
+          <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Event Target Match Listing</label>
+          <select id="pub-match-id" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-mintGreen transition">
+            <!-- Populated via active match list -->
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Combo Ticket Header Title</label>
+          <input type="text" id="pub-title" placeholder="e.g., Weekend Massive 6+ Odds Combo" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-mintGreen transition">
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Details and Brief Analysis</label>
+          <textarea id="pub-desc" placeholder="Provide extra reasoning about soccer conditions..." class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-mintGreen transition h-16"></textarea>
+        </div>
+        
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-[10px] text-mintGreen font-bold uppercase">Tips Combo Bundle (3 required)</label>
+            <span class="text-[9px] text-gray-500 font-mono">Exactly 3 Tips Bundle</span>
+          </div>
+          
+          <div id="publish-tips-wrapper" class="space-y-2.5">
+            <div class="bg-[#090a0f] p-2.5 rounded-xl border border-white/5 space-y-2">
+              <span class="text-[9px] text-[#fbbf24] font-bold uppercase">Game Tip #1</span>
+              <input type="text" placeholder="Prediction Market (e.g. Over 2.5 Goals)" required class="pub-tip-prediction w-full bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none">
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" placeholder="Selection (e.g. Over)" required class="pub-tip-option bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none">
+                <input type="number" placeholder="Odds" step="0.01" min="1.01" required class="pub-tip-odds bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none font-mono">
+              </div>
+            </div>
+            <div class="bg-[#090a0f] p-2.5 rounded-xl border border-white/5 space-y-2">
+              <span class="text-[9px] text-[#fbbf24] font-bold uppercase">Game Tip #2</span>
+              <input type="text" placeholder="Prediction Market (e.g. Both Teams to Score)" required class="pub-tip-prediction w-full bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none">
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" placeholder="Selection (e.g. Yes)" required class="pub-tip-option bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none">
+                <input type="number" placeholder="Odds" step="0.01" min="1.01" required class="pub-tip-odds bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none font-mono">
+              </div>
+            </div>
+            <div class="bg-[#090a0f] p-2.5 rounded-xl border border-white/5 space-y-2">
+              <span class="text-[9px] text-[#fbbf24] font-bold uppercase">Game Tip #3</span>
+              <input type="text" placeholder="Prediction Market (e.g. Match Winner)" required class="pub-tip-prediction w-full bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none">
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" placeholder="Selection (e.g. Real Madrid)" required class="pub-tip-option bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none">
+                <input type="number" placeholder="Odds" step="0.01" min="1.01" required class="pub-tip-odds bg-bgDark border border-white/5 rounded-lg p-2 text-xs text-white outline-none font-mono">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">SaaS Listing Price ($)</label>
+            <input type="number" id="pub-price" placeholder="e.g. 15" required min="0" class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white font-mono outline-none focus:border-mintGreen transition">
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Tier Status Badge</label>
+            <select id="pub-vip" class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-mintGreen transition">
+              <option value="0">🆓 Public Standard</option>
+              <option value="1">👑 Premium VIP Only</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full btn-emerald-graded py-2.5 rounded-xl font-bold text-xs mt-3">Settle Ticket & List In Marketplace</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="admin-create-match-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4 hidden">
+    <div class="glass-panel p-6 w-full max-w-sm border border-orange-500/20 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+        <h4 class="text-sm font-extrabold text-white uppercase flex items-center gap-1.5 text-hotOrange">
+          <i data-lucide="plus-square" class="w-4.5 h-4.5"></i> Inject Sports Match
+        </h4>
+        <button onclick="closeCreateMatchModal()" class="p-1 hover:bg-white/5 rounded-full text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <form id="create-match-form" onsubmit="executeCreateMatch(event)" class="space-y-3.5">
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Sports discipline</label>
+            <select id="match-sport" class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none">
+              <option value="Football">⚽ Football</option>
+              <option value="Basketball">🏀 Basketball</option>
+              <option value="Tennis">🎾 Tennis</option>
+              <option value="eSports">🎮 eSports</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Kickoff time (Hours)</label>
+            <input type="number" id="match-hours" value="2" min="1" class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white font-mono outline-none">
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Home Team Name</label>
+            <input type="text" id="match-home" placeholder="e.g. Arsenal" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none">
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Away Team Name</label>
+            <input type="text" id="match-away" placeholder="e.g. Liverpool" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Home Team Logo/Emoji</label>
+            <input type="text" id="match-home-logo" value="🔴" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none text-center">
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Away Team Logo/Emoji</label>
+            <input type="text" id="match-away-logo" value="🔴⚪" required class="w-full bg-[#0d0e12] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none text-center">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-gradient-to-r from-orange-600 to-amber-500 text-bgDark font-bold py-2.5 rounded-xl text-xs">Inject Match Live Scheduled</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed top-16 right-4 left-4 md:left-auto md:w-80 z-50 space-y-2 pointer-events-none"></div>
+
+  <script>
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `p-3.5 rounded-xl text-xs font-bold shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 flex items-center justify-between pointer-events-auto ${
+        type === 'success' ? 'bg-mintGreen text-bgDark' :
+        type === 'error' ? 'bg-red-500 text-white' :
+        'bg-slate-800 text-white border border-white/10'
+      }`;
+      
+      let icon = 'info';
+      if (type === 'success') icon = 'check-circle';
+      if (type === 'error') icon = 'alert-triangle';
+      
+      toast.innerHTML = `
+        <div class="flex items-center gap-2">
+          <i data-lucide="${icon}" class="w-4 h-4"></i>
+          <span>${message}</span>
+        </div>
+        <button onclick="this.parentElement.remove()" class="p-1 hover:brightness-90"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+      `;
+      
+      container.appendChild(toast);
+      lucide.createIcons();
+      
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 50);
+      
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+  </script>
+
+  <!-- jQuery & Main SPA javascript logic -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>

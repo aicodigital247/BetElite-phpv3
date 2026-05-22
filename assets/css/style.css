@@ -1,0 +1,155 @@
+/* 
+  BETELITE - Premium Sports Prediction Platform Layout Styles
+  Custom Stylesheet with Glassmorphism and Neon ACCENTS
+*/
+
+html, body {
+  background-color: #0b0c10;
+  color: #f1f3f5;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+/* Glassmorphism Background Card style */
+.glass-panel {
+  background: rgba(17, 20, 28, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+}
+
+.glass-panel-vip {
+  background: rgba(22, 19, 12, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  border-radius: 16px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0e12;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+/* Glowing Neon Borders & Badges */
+.neon-glow-green {
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+}
+.neon-glow-gold {
+  text-shadow: 0 0 10px rgba(234, 179, 8, 0.6);
+}
+.neon-border-green {
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+.neon-border-gold {
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.25);
+  border: 1px solid rgba(234, 179, 8, 0.45) !important;
+}
+
+/* Custom Sports Selection Tickers */
+.sport-pill {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sport-pill.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* Pulse animation for Live game tag */
+@keyframes blink-live {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.92);
+  }
+}
+.live-pulse {
+  animation: blink-live 1.8s infinite ease-in-out;
+}
+
+/* Rotating loader */
+@keyframes spin-loader {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.custom-spinner {
+  border: 3px solid rgba(255,255,255,0.05);
+  border-radius: 50%;
+  border-top: 3px solid #10b981;
+  width: 24px;
+  height: 24px;
+  animation: spin-loader 0.8s linear infinite;
+}
+
+/* Float card in and out drawer */
+.cart-drawer-container {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Slide active tab pages */
+.tab-content-view {
+  display: none;
+  animation: fade-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tab-content-view.active {
+  display: block;
+}
+
+@keyframes fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Odds button */
+.odds-btn {
+  background: rgba(31, 41, 55, 0.5);
+  border: 1px solid rgba(255,255,255,0.04);
+  transition: all 0.15s ease;
+}
+.odds-btn:hover {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* Soft gold VIP styles */
+.vip-badge-gradient {
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  color: #0b0c10;
+  font-weight: 700;
+}
+
+/* General button gradient */
+.btn-emerald-graded {
+  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  color: #fff;
+  font-weight: 600;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-emerald-graded:hover {
+  opacity: 0.95;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
